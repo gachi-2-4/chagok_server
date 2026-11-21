@@ -52,6 +52,7 @@ class BoxServiceTest {
     @Mock DocumentRepository documents;
     @Mock DeadlineQueryService deadlineQuery;
     @Mock DocumentDeletionService documentDeletion;
+    @Mock gachi.chagok_server.domain.chat.repository.ChatBoxLinkRepository chatBoxLinks;
     @InjectMocks BoxService boxService;
 
     private final User user = User.phoneUser("01012345678", "hash", "홍길동");
@@ -237,6 +238,7 @@ class BoxServiceTest {
 
         // then
         assertThat(deleted.deletedDocumentCount()).isEqualTo(3);
+        verify(chatBoxLinks).deleteByBoxId(1L);
         verify(boxes).delete(target);
     }
 }
