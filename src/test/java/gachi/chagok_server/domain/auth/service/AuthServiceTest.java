@@ -36,6 +36,7 @@ class AuthServiceTest {
     @Mock ConsentHistoryRepository consents;
     @Mock NotificationSettingsRepository notificationSettings;
     @Mock PushTokenRepository pushTokens;
+    @Mock gachi.chagok_server.domain.box.service.BoxService boxes;
     @InjectMocks AuthService authService;
 
     @Test

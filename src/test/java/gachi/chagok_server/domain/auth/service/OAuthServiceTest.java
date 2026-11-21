@@ -34,6 +34,7 @@ class OAuthServiceTest {
     @Mock UserRepository users;
     @Mock SocialAccountRepository social;
     @Mock TokenService tokens;
+    @Mock gachi.chagok_server.domain.box.service.BoxService boxes;
     @InjectMocks OAuthService oAuthService;
 
     @Test
