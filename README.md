@@ -33,6 +33,23 @@
 
 테이블 생성 방식(`ddl-auto`)은 `application.yaml`에 없습니다. 로컬 프로파일에서 지정하거나 DDL을 따로 실행해야 합니다.
 
+## Docker Compose로 실행
+
+MySQL 8.4, Redis 7, 앱을 한 번에 띄웁니다. 로컬 개발·테스트용이며 운영 배포 설정이 아닙니다.
+
+```bash
+cp .env.example .env              # 예시 값이 들어 있어 그대로도 뜹니다. 필요한 값만 고치세요
+docker compose up -d mysql redis  # DB·Redis만 (앱은 IDE에서 실행, DB는 localhost:3306)
+docker compose up -d --build      # 앱까지 전부 (http://localhost:8080)
+docker compose down               # 중지 (데이터 유지). 데이터까지 지우려면 down -v
+```
+
+- `.env`는 커밋하지 않습니다(`.gitignore`). 환경변수 목록과 예시 값은 [.env.example](.env.example)에 있습니다.
+- DB·Redis 포트는 내 컴퓨터(127.0.0.1)에서만 열립니다. 포트가 겹치면 `.env`의 `MYSQL_PORT`, `REDIS_PORT`, `APP_PORT`를 바꾸세요.
+- compose에서는 테이블을 자동으로 만듭니다(`DDL_AUTO=update`). 운영에서는 `validate` 또는 `none`만 쓰세요.
+- Redis는 띄워 두기만 하고 앱은 아직 쓰지 않습니다(의존성 없음).
+- S3·AI 서버·FCM은 예시 값이 더미입니다. 서류 업로드를 실제로 쓰려면 `S3_BUCKET`과 AWS 자격 증명을 채우세요. 호스트에서 돌리는 AI 서버는 `http://host.docker.internal:8000`으로 접속합니다.
+
 ## 구성
 
 도메인형 패키지(`gachi.chagok_server`)입니다.

@@ -1,0 +1,75 @@
+# 로컬 개발·테스트용 스택: MySQL + Redis + 앱
+#
+#   cp .env.example .env
+#   docker compose up -d mysql redis    # DB·Redis만 (앱은 IDE에서 실행)
+#   docker compose up -d --build        # 앱까지 전부
+#
+# 운영 배포용 설정이 아닙니다 (DB 비밀번호·포트 공개 범위·ddl-auto 등을 따로 정해야 합니다).
+name: chagok
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?.env 파일이 필요해요 (cp .env.example .env)}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-chagok}
+      MYSQL_USER: ${DB_USERNAME:-chagok}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      TZ: Asia/Seoul
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+09:00
+    ports:
+      # 내 컴퓨터에서만 접속할 수 있게 연다
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?.env 파일이 필요해요 (cp .env.example .env)}"]
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # 컨테이너 안에서는 서비스 이름으로 DB에 접속한다 (.env의 값보다 우선)
+      DB_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-chagok}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+      DB_USERNAME: ${DB_USERNAME:-chagok}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${DDL_AUTO:-update}
+    extra_hosts:
+      # Linux에서도 host.docker.internal로 호스트의 AI 서버에 접속할 수 있게 한다
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${APP_PORT:-8080}:8080"
+
+volumes:
+  mysql-data:
+  redis-data:

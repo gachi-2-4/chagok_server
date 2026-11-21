@@ -1,0 +1,11 @@
+.git
+.gradle
+.idea
+build
+out
+*.iml
+.env
+.env.*
+!.env.example
+docs
+HELP.md
