@@ -4,7 +4,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/chagok}
     username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:alsl7866!!}
+    password: ${DB_PASSWORD}
 
 auth:
   jwt:
@@ -18,9 +18,16 @@ auth:
   oauth:
     kakao:
       client-id: ${KAKAO_CLIENT_ID}
+      # 카카오 디벨로퍼스의 앱 ID(숫자). 다른 앱에서 발급된 액세스 토큰을 거부하는 데 사용한다.
+      app-id: ${KAKAO_APP_ID}
       client-secret: ${KAKAO_CLIENT_SECRET:}
       redirect-uri: ${KAKAO_REDIRECT_URI}
     google:
       client-id: ${GOOGLE_CLIENT_ID}
       client-secret: ${GOOGLE_CLIENT_SECRET}
       redirect-uri: ${GOOGLE_REDIRECT_URI}
+
+chagok:
+  internal:
+    # 내부 서비스 간 호출(X-Internal-Key 헤더) 인증 키
+    key: ${CHAGOK_INTERNAL_KEY}

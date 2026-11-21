@@ -6,7 +6,7 @@ import gachi.chagok_server.domain.user.repository.*;
 import gachi.chagok_server.global.exception.*;
 import lombok.RequiredArgsConstructor;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;
 import java.time.*;import java.util.*;
-@Service @RequiredArgsConstructor
+@Service @RequiredArgsConstructor @Transactional(readOnly=true)
 public class OAuthService {
  private final KakaoOAuthClient kakao;private final GoogleOAuthClient google;private final UserRepository users;
  private final SocialAccountRepository social;private final TokenService tokens;
@@ -19,7 +19,11 @@ public class OAuthService {
    user=User.socialUser(info.name()==null?"사용자":info.name());user.setSocialProvider(provider==SocialProvider.KAKAO?LoginType.KAKAO:LoginType.GOOGLE);
    if(info.birthDate()!=null)user.setBirthDateOnce(info.birthDate());
    users.saveAndFlush(user);social.save(new SocialAccount(user,provider,info.providerUserId()));
-  }else user=linked.get().getUser();
+  }else{
+   user=linked.get().getUser();
+   // 탈퇴한 사용자에게는 토큰을 발급하지 않는다.
+   if(user.isDeleted())throw new BusinessException(ErrorCode.UNAUTHORIZED);
+  }
   TokenResponse t=tokens.issue(user,keep);List<String> missing=new ArrayList<>();
   if(info.name()==null)missing.add("name");if(user.getBirthDate()==null)missing.add("birthDate");if(user.getPhoneNumber()==null)missing.add("phoneNumber");
   boolean under14=user.getBirthDate()!=null&&user.getBirthDate().isAfter(LocalDate.now(ZoneId.of("Asia/Seoul")).minusYears(14));

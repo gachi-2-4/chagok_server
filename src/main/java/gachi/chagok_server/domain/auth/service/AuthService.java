@@ -6,14 +6,16 @@ import gachi.chagok_server.domain.user.entity.*;
 import gachi.chagok_server.domain.user.repository.*;
 import gachi.chagok_server.domain.notification.entity.NotificationSettings;
 import gachi.chagok_server.domain.notification.repository.NotificationSettingsRepository;
+import gachi.chagok_server.domain.notification.repository.PushTokenRepository;
 import gachi.chagok_server.global.exception.*;
 import lombok.RequiredArgsConstructor;import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;
 import java.time.*;
-@Service @RequiredArgsConstructor
+@Service @RequiredArgsConstructor @Transactional(readOnly=true)
 public class AuthService {
  private final UserRepository users;private final PasswordEncoder encoder;private final PhoneVerificationService phones;
  private final TokenService tokens;private final ConsentHistoryRepository consents;private final NotificationSettingsRepository notificationSettings;
+ private final PushTokenRepository pushTokens;
  @Value("${chagok.consents.version:2026-11-01}") private String consentVersion;
  @Transactional
  public TokenResponse signUp(SignUpRequest req){
@@ -32,14 +34,19 @@ public class AuthService {
  @Transactional
  public TokenResponse login(LoginRequest req){
   User u=users.findByPhoneNumber(req.phoneNumber()).filter(x->!x.isDeleted()).orElse(null);
-  if(u==null||u.getPasswordHash()==null||!encoder.matches(req.password(),u.getPasswordHash()))throw new BusinessException(ErrorCode.INVALID_INPUT);
+  if(u==null||u.getPasswordHash()==null||!encoder.matches(req.password(),u.getPasswordHash()))throw new BusinessException(ErrorCode.UNAUTHORIZED);
   return tokens.issue(u,req.keepLogin());
  }
  @Transactional
  public void reset(PasswordResetRequest req){
   phones.consume(req.phoneNumber(),req.verificationToken(),VerificationPurpose.PASSWORD_RESET);
-  User u=users.findByPhoneNumber(req.phoneNumber()).orElseThrow(()->new BusinessException(ErrorCode.INVALID_INPUT));
+  User u=users.findByPhoneNumber(req.phoneNumber()).filter(x->!x.isDeleted()).orElseThrow(()->new BusinessException(ErrorCode.INVALID_INPUT));
   if(u.getPasswordHash()==null||encoder.matches(req.newPassword(),u.getPasswordHash()))throw new BusinessException(ErrorCode.INVALID_INPUT);
   u.changePasswordHash(encoder.encode(req.newPassword()));tokens.revokeAll(u.getId());
+ }
+ /** 로그아웃. 푸시 토큰은 리프레시 세션의 소유자와 같은 사용자의 기기일 때만 삭제한다(타인 기기 토큰 삭제 방지). */
+ @Transactional
+ public void logout(LogoutRequest req,String accessToken){
+  tokens.logout(req.refreshToken(),accessToken).ifPresent(userId->pushTokens.deleteByDeviceIdAndUserId(req.deviceId(),userId));
  }
 }
