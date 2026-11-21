@@ -34,6 +34,7 @@ class SecurityConfigTest {
     @Autowired MockMvc mockMvc;
     @Autowired JwtTokenProvider jwtTokenProvider;
     @MockitoBean UserService userService;
+    @MockitoBean gachi.chagok_server.domain.user.service.UserWithdrawalService userWithdrawalService;
     @MockitoBean TokenService tokenService;
     @MockitoBean UserRepository userRepository;
 
