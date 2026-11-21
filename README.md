@@ -12,7 +12,7 @@
 ./gradlew test    # 테스트만
 ```
 
-테스트는 H2와 목(Mockito)으로 돌며 실제 MySQL·S3·AI 서버·FCM은 필요 없습니다.
+테스트는 H2와 목(Mockito)으로 돌며 실제 MySQL·S3·AI 서버·FCM·카카오는 필요 없습니다. 외부 서비스 호출은 모의 서버로만 확인했고, 실제 서비스와 붙여 본 적은 없습니다.
 
 ## 설정
 
@@ -29,9 +29,24 @@
 | `CHAGOK_INTERNAL_KEY` | AI 서버 → BE 내부 API 인증 (`X-Internal-Key`) |
 | `S3_BUCKET`, `AWS_REGION`(기본 `ap-northeast-2`) | 서류 원본·페이지 이미지 저장소. 자격 증명은 AWS 기본 제공자 체인 |
 | `AI_SERVER_URL`, `AI_SERVER_API_KEY` | BE → AI 서버 호출 (`X-API-Key`) |
-| `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` | FCM 푸시 발송 (Firebase 서비스 계정 키 JSON의 `project_id`, `client_email`, `private_key`). 하나라도 비면 푸시를 로그로만 남김 |
+| `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY`(선택) | FCM 푸시 발송 (Firebase 서비스 계정 키 JSON의 `project_id`, `client_email`, `private_key`). 하나라도 비면 푸시를 로그로만 남김 |
 
 테이블 생성 방식(`ddl-auto`)은 `application.yaml`에 없습니다. 로컬 프로파일에서 지정하거나 DDL을 따로 실행해야 합니다.
+
+## 구성
+
+도메인형 패키지(`gachi.chagok_server`)입니다.
+
+| 위치 | 내용 |
+| --- | --- |
+| `domain/auth`, `domain/user` | 가입·로그인·토큰, 내 정보·프로필·약관 동의·회원 탈퇴 |
+| `domain/box`, `domain/document` | 박스, 서류 업로드·분석 반영·조회·수정·삭제 |
+| `domain/deadline`, `domain/notification`, `domain/home` | 기한·기한 알림, 알림 목록·설정·푸시, 메인 화면 |
+| `domain/comparison`, `domain/chat` | 서류 비교·확인 요청 문자, AI 채팅 |
+| `domain/ai` | BE → AI 서버 호출 클라이언트(`AiServerClient`) |
+| `global` | 공통 응답·예외, 보안(JWT·내부 키), 설정, S3 저장소 |
+
+주기 작업은 두 가지입니다. 10분마다 기한 알림을 보내고(`ReminderScheduler`), 매시 정각에 분석에 실패한 지 24시간이 지난 서류를 지웁니다(`DocumentCleanupScheduler`).
 
 ## API 구현 현황
 
@@ -39,25 +54,44 @@
 
 | 도메인 | 경로 | 구현 | 비고 |
 | --- | --- | --- | --- |
-| auth | `/auth/**` | 10/10 | 명세 대조는 이번 정리에서 다시 하지 않았습니다 |
-| user | `/user/**` | 6/6 | 내 정보 조회, 글자 크기, 프로필, 약관 동의, **회원 탈퇴**, 내부 조회(AI 서버용) |
+| auth | `/auth/**` | 10/10 | 이전 작업분이라 명세와 다시 대조하지 않았습니다 |
+| user | `/user/**` | 6/6 | 내 정보 조회, 글자 크기, 프로필, 약관 동의, 회원 탈퇴, 내부 조회(AI 서버용) |
 | box | `/boxes/**` | 5/5 | 가입 시 기본 박스 5개 생성 |
-| document | `/documents/**` | 10/10 | 업로드는 비동기 AI 분석. AI 서버용 내부 조회(`X-Internal-Key`)는 서류 상세 조회에 포함 |
-| deadline·reminder | `/deadlines/**`, `/reminders/**` | 7/7 | 10분마다 도는 알림 스케줄러 포함 |
+| document | `/documents/**` | 10/10 | 업로드는 비동기 AI 분석 |
+| deadline·reminder | `/deadlines/**`, `/reminders/**` | 7/7 | |
 | home | `/home` | 1/1 | |
-| notification | `/notifications/**` | 7/7 | FCM 푸시 발송 포함 (`FCM_*` 설정이 있을 때) |
-| comparison | `/comparisons/**` | 3/3 | 비교 요청·결과 조회·확인 요청 문자. 결과 조회는 AI 서버용 내부 호출도 받음 |
-| chat | `/chats/**` | 5/5 | 메시지 조회는 AI 서버용 내부 호출도 받음. 스트리밍(SSE) 포함 |
+| notification | `/notifications/**` | 7/7 | |
+| comparison | `/comparisons/**` | 3/3 | 비교 요청, 결과 조회, 확인 요청 문자 |
+| chat | `/chats/**` | 5/5 | 질문 보내기는 스트리밍(SSE)도 지원 |
 
-AI 채팅에서 AI가 서류를 잃어버리면(`INDEX_NOT_FOUND`) 서류 분석을 다시 요청합니다. 이때는 사용자가 고친 항목·납부일·기한·알림 설정을 새 결과에 이어 붙이고, 끝나면 원래 서류 상태로 되돌리며, 실패해도 서류를 실패 처리하지 않습니다. 앱에는 409 `DOCUMENT_NOT_INDEXED`로 잠시 기다리게 합니다.
+### AI 서버용 내부 API
 
-회원 탈퇴 때 카카오 계정은 연결 끊기를 커밋 뒤 비동기로 호출합니다(`KAKAO_ADMIN_KEY`가 있을 때).
+AI 서버는 사용자 토큰 없이 `X-Internal-Key` 헤더로 아래 API를 호출합니다. 키가 없거나 틀리면 403이고, 이 헤더로는 아래 경로 외의 API를 부를 수 없습니다.
 
-FCM 푸시는 firebase-admin 없이 FCM HTTP v1 API를 RestClient로 호출합니다. 알림 저장이 커밋된 뒤 비동기로 보내고, FCM이 토큰 만료(UNREGISTERED)를 알려 주면 그 토큰을 지웁니다. 실제 FCM 서버로는 아직 보내 보지 못했습니다(테스트는 모의 서버).
+| 경로 | 용도 |
+| --- | --- |
+| `GET /api/v1/user/{userId}` | 사용자 정보 |
+| `GET /api/v1/documents/{id}?userId=` | 서류 분석 결과 (OCR 원문 `fullText` 포함) |
+| `GET /api/v1/comparisons/{id}?userId=` | 비교 결과 |
+| `GET /api/v1/chats/{id}/messages?userId=` | 최근 대화 |
 
-BE → AI 서버 호출(문서 분석, 요약 카드, 채팅, 질문 칩, 서류 비교, 문자 생성)은 `domain/ai`의 `AiServerClient`로 구현했습니다.
+### 동작 메모
 
-## 아직 안 된 것·확정이 필요한 것
+- **서류 분석**: 업로드하면 202를 주고, 커밋 뒤 비동기로 AI 서버를 부릅니다. AI 서버 오류·시간 초과는 한 번 더 시도합니다.
+- **AI 채팅 서류 복구**: AI가 서류를 잃어버리면(`INDEX_NOT_FOUND`) 서류 분석을 다시 요청합니다. 이때 사용자가 고친 항목·납부일·기한·알림 설정은 새 결과에 이어 붙이고, 끝나면 원래 서류 상태로 되돌리며, 실패해도 서류를 실패 처리하지 않습니다. 앱에는 409 `DOCUMENT_NOT_INDEXED`로 잠시 기다리게 합니다.
+- **푸시**: firebase-admin 없이 FCM HTTP v1 API를 RestClient로 호출합니다. 알림 저장이 커밋된 뒤 비동기로 보내고, FCM이 토큰 만료(`UNREGISTERED`)를 알려 주면 그 토큰을 지웁니다.
+- **회원 탈퇴**: 서류·파일·비교·대화·알림·토큰·프로필·소셜 연결을 한 트랜잭션으로 지웁니다. 사용자 행은 개인정보만 비우고 남겨 약관 동의 이력을 보관하며, 같은 전화번호로 다시 가입할 수 있습니다. 저장소 파일과 카카오 연결 끊기(`KAKAO_ADMIN_KEY`가 있을 때)는 커밋 뒤 비동기로 처리합니다.
+
+### AI 서버와 맞춘 경로·형식
+
+명세 안에서 서로 다르게 적힌 곳([docs/api/README.md](docs/api/README.md)의 "노션 원본 안에서 서로 다른 부분" 표)은 아래처럼 정했습니다. AI 팀과 확정이 필요합니다.
+
+- 문서 분석: `POST /ai/documents/{id}/analysis`, ID는 숫자
+- 요약 카드: GET+Body 대신 `POST /ai/documents/summary-card`
+- 채팅: `POST /ai/chats/{id}/answer`, Body는 `userId`·`documentIds`(복수)·`question`
+- 질문 칩: `GET /ai/chat/suggestions` (서류 ID 필수)
+
+## 제한 사항
 
 | 항목 | 상태 |
 | --- | --- |
@@ -67,10 +101,3 @@ BE → AI 서버 호출(문서 분석, 요약 카드, 채팅, 질문 칩, 서류
 | 회원 탈퇴 비밀번호 재확인 | 넣지 않기로 했습니다 (명세 기본값대로 Body 없이 토큰만으로 탈퇴) |
 | AI 채팅 서류 한도 | 명세 목표는 20개이나 AI가 5개만 받아 5개로 막습니다. AI가 늘리면 `ChatLinkResolver.MAX_DOCUMENTS`를 바꿉니다 |
 | 질문 횟수 제한(분당 10회) | 서버 한 대의 메모리에서만 셉니다 (서버 1대 운영 기준으로 유지하기로 함). 서버를 여러 대로 늘리면 공유 저장소가 필요합니다 |
-
-AI 서버와 경로·요청 형식을 맞춰야 하는 곳은 [docs/api/README.md](docs/api/README.md)의 "노션 원본 안에서 서로 다른 부분" 표에 있습니다. 구현은 아래처럼 정했습니다.
-
-- 문서 분석: `POST /ai/documents/{id}/analysis`, ID는 숫자
-- 요약 카드: GET+Body 대신 `POST /ai/documents/summary-card`
-- 채팅: `POST /ai/chats/{id}/answer`, Body는 `userId`·`documentIds`(복수)·`question`
-- 질문 칩: `GET /ai/chat/suggestions` (서류 ID 필수)
