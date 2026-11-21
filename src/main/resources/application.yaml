@@ -47,3 +47,9 @@ chagok:
     # 문서 분석은 최대 90초, 쉬운말 요약 카드는 15초 (명세)
     analysis-timeout-seconds: 90
     summary-timeout-seconds: 15
+  fcm:
+    # FCM 푸시 발송용 Firebase 서비스 계정. 셋 중 하나라도 비어 있으면 푸시를 로그로만 남긴다.
+    project-id: ${FCM_PROJECT_ID:}
+    client-email: ${FCM_CLIENT_EMAIL:}
+    # 서비스 계정 키(JSON)의 private_key 값 (줄바꿈은 \n 문자 그대로 넣어도 된다)
+    private-key: ${FCM_PRIVATE_KEY:}

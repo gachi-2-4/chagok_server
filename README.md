@@ -28,6 +28,7 @@
 | `CHAGOK_INTERNAL_KEY` | AI 서버 → BE 내부 API 인증 (`X-Internal-Key`) |
 | `S3_BUCKET`, `AWS_REGION`(기본 `ap-northeast-2`) | 서류 원본·페이지 이미지 저장소. 자격 증명은 AWS 기본 제공자 체인 |
 | `AI_SERVER_URL`, `AI_SERVER_API_KEY` | BE → AI 서버 호출 (`X-API-Key`) |
+| `FCM_PROJECT_ID`, `FCM_CLIENT_EMAIL`, `FCM_PRIVATE_KEY` | FCM 푸시 발송 (Firebase 서비스 계정 키 JSON의 `project_id`, `client_email`, `private_key`). 하나라도 비면 푸시를 로그로만 남김 |
 
 테이블 생성 방식(`ddl-auto`)은 `application.yaml`에 없습니다. 로컬 프로파일에서 지정하거나 DDL을 따로 실행해야 합니다.
 
@@ -43,9 +44,11 @@
 | document | `/documents/**` | 10/10 | 업로드는 비동기 AI 분석. AI 서버용 내부 조회(`X-Internal-Key`)는 서류 상세 조회에 포함 |
 | deadline·reminder | `/deadlines/**`, `/reminders/**` | 7/7 | 10분마다 도는 알림 스케줄러 포함 |
 | home | `/home` | 1/1 | |
-| notification | `/notifications/**` | 7/7 | 푸시 발송은 아래 참고 |
+| notification | `/notifications/**` | 7/7 | FCM 푸시 발송 포함 (`FCM_*` 설정이 있을 때) |
 | comparison | `/comparisons/**` | 3/3 | 비교 요청·결과 조회·확인 요청 문자. 결과 조회는 AI 서버용 내부 호출도 받음 |
 | chat | `/chats/**` | 5/5 | 메시지 조회는 AI 서버용 내부 호출도 받음. 스트리밍(SSE) 포함 |
+
+FCM 푸시는 firebase-admin 없이 FCM HTTP v1 API를 RestClient로 호출합니다. 알림 저장이 커밋된 뒤 비동기로 보내고, FCM이 토큰 만료(UNREGISTERED)를 알려 주면 그 토큰을 지웁니다. 실제 FCM 서버로는 아직 보내 보지 못했습니다(테스트는 모의 서버).
 
 BE → AI 서버 호출(문서 분석, 요약 카드, 채팅, 질문 칩, 서류 비교, 문자 생성)은 `domain/ai`의 `AiServerClient`로 구현했습니다.
 
@@ -53,7 +56,6 @@ BE → AI 서버 호출(문서 분석, 요약 카드, 채팅, 질문 칩, 서류
 
 | 항목 | 상태 |
 | --- | --- |
-| FCM 푸시 발송 | 인터페이스(`PushSender`)와 로그만 남기는 기본 구현만 있습니다. 알림 목록 저장은 동작합니다. firebase-admin 의존성 추가가 필요합니다 |
 | HEIC 업로드 | Java 기본 이미지 라이브러리가 읽지 못해 `UNSUPPORTED_FILE_TYPE`로 거부합니다 |
 | AI 서버 서류 인덱스 삭제 | 서류·박스 삭제, 회원 탈퇴 때 요청하지 않습니다 (명세에 API 없음) |
 | 카카오 연결 끊기·구글 토큰 철회 | 회원 탈퇴 때 호출하지 않습니다 (로그인 토큰을 저장하지 않고 카카오 어드민 키 설정이 없음) |
