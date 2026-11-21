@@ -12,11 +12,13 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 public class SecurityConfig {
  @Bean PasswordEncoder passwordEncoder(){return new BCryptPasswordEncoder();}
+ /** AI 서버가 서류를 가져가는 GET /api/v1/documents/{id}는 X-Internal-Key가 있을 때만 JWT 없이 컨트롤러까지 보낸다. 키 검증은 컨트롤러에서 한다. */
+ static boolean isInternalDocumentRead(jakarta.servlet.http.HttpServletRequest request){return "GET".equals(request.getMethod())&&request.getHeader(InternalKeyVerifier.HEADER)!=null&&request.getRequestURI().matches("/api/v1/documents/\\d+");}
  @Bean SecurityFilterChain filterChain(HttpSecurity http,JwtTokenProvider jwt,TokenService tokens,UserRepository users)throws Exception{
  return http.csrf(AbstractHttpConfigurer::disable).httpBasic(AbstractHttpConfigurer::disable).formLogin(AbstractHttpConfigurer::disable)
  .sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
  // 내부 조회 API(GET /api/v1/user/{userId})는 JWT 대신 X-Internal-Key로 컨트롤러에서 검증한다. 숫자 ID만 열어 /me 등은 계속 JWT가 필요하다.
- .authorizeHttpRequests(a->a.requestMatchers("/api/v1/auth/**").permitAll().requestMatchers(HttpMethod.GET,"/api/v1/user/{userId:\\d+}").permitAll().anyRequest().authenticated())
+ .authorizeHttpRequests(a->a.requestMatchers(SecurityConfig::isInternalDocumentRead).permitAll().requestMatchers("/api/v1/auth/**").permitAll().requestMatchers(HttpMethod.GET,"/api/v1/user/{userId:\\d+}").permitAll().anyRequest().authenticated())
  .exceptionHandling(e->e.authenticationEntryPoint((req,res,ex)->{res.setStatus(401);res.setContentType(MediaType.APPLICATION_JSON_VALUE);res.setCharacterEncoding("UTF-8");res.getWriter().write("{\"success\":false,\"data\":null,\"error\":{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다.\"}}");}))
  .addFilterBefore(new JwtAuthenticationFilter(jwt,tokens,users),UsernamePasswordAuthenticationFilter.class).build();
  }

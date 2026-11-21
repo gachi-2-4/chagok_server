@@ -1,5 +1,6 @@
 package gachi.chagok_server.domain.auth.service;
 import gachi.chagok_server.domain.auth.oauth.*;
+import gachi.chagok_server.domain.box.service.BoxService;
 import gachi.chagok_server.domain.auth.dto.response.*;
 import gachi.chagok_server.domain.user.entity.*;
 import gachi.chagok_server.domain.user.repository.*;
@@ -10,6 +11,7 @@ import java.time.*;import java.util.*;
 public class OAuthService {
  private final KakaoOAuthClient kakao;private final GoogleOAuthClient google;private final UserRepository users;
  private final SocialAccountRepository social;private final TokenService tokens;
+ private final BoxService boxes;
  @Transactional public OAuthTokenResponse kakaoLogin(String access,boolean keep){return login(SocialProvider.KAKAO,kakao.verify(access),keep);}
  @Transactional public OAuthTokenResponse googleLogin(String idToken,boolean keep){return login(SocialProvider.GOOGLE,google.verify(idToken),keep);}
  private OAuthTokenResponse login(SocialProvider provider,OAuthUserInfo info,boolean keep){
@@ -19,6 +21,7 @@ public class OAuthService {
    user=User.socialUser(info.name()==null?"사용자":info.name());user.setSocialProvider(provider==SocialProvider.KAKAO?LoginType.KAKAO:LoginType.GOOGLE);
    if(info.birthDate()!=null)user.setBirthDateOnce(info.birthDate());
    users.saveAndFlush(user);social.save(new SocialAccount(user,provider,info.providerUserId()));
+   boxes.createDefaults(user);
   }else{
    user=linked.get().getUser();
    // 탈퇴한 사용자에게는 토큰을 발급하지 않는다.

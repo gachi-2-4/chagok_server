@@ -3,4 +3,5 @@ import gachi.chagok_server.domain.notification.entity.PushToken;
 import org.springframework.data.jpa.repository.JpaRepository;
 public interface PushTokenRepository extends JpaRepository<PushToken,String> {
  void deleteByDeviceIdAndUserId(String deviceId,Long userId);
+ java.util.List<PushToken> findByUserIdAndPermissionGrantedTrue(Long userId);
 }

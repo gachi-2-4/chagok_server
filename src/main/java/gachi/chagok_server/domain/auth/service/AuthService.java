@@ -7,6 +7,7 @@ import gachi.chagok_server.domain.user.repository.*;
 import gachi.chagok_server.domain.notification.entity.NotificationSettings;
 import gachi.chagok_server.domain.notification.repository.NotificationSettingsRepository;
 import gachi.chagok_server.domain.notification.repository.PushTokenRepository;
+import gachi.chagok_server.domain.box.service.BoxService;
 import gachi.chagok_server.global.exception.*;
 import lombok.RequiredArgsConstructor;import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;import org.springframework.stereotype.Service;import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,7 @@ public class AuthService {
  private final UserRepository users;private final PasswordEncoder encoder;private final PhoneVerificationService phones;
  private final TokenService tokens;private final ConsentHistoryRepository consents;private final NotificationSettingsRepository notificationSettings;
  private final PushTokenRepository pushTokens;
+ private final BoxService boxes;
  @Value("${chagok.consents.version:2026-11-01}") private String consentVersion;
  @Transactional
  public TokenResponse signUp(SignUpRequest req){
@@ -28,6 +30,7 @@ public class AuthService {
   saveConsent(u,ConsentType.TERMS_OF_SERVICE,true);saveConsent(u,ConsentType.PRIVACY_POLICY,true);
   saveConsent(u,ConsentType.GUARDIAN_CONSENT,req.consents().guardianConsent());saveConsent(u,ConsentType.OVERSEAS_TRANSFER,req.consents().overseasTransfer());saveConsent(u,ConsentType.MARKETING,req.consents().marketing());
   notificationSettings.save(new NotificationSettings(u));
+  boxes.createDefaults(u);
   return tokens.issue(u,true);
  }
  private void saveConsent(User u,ConsentType t,boolean v){consents.save(new ConsentHistory(u,t,v,consentVersion));}

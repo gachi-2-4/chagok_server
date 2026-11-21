@@ -1,6 +1,11 @@
 spring:
   application:
     name: chagok_server
+  servlet:
+    multipart:
+      # 서류 업로드: 파일당 20MB, 사진 최대 10장
+      max-file-size: 20MB
+      max-request-size: 210MB
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/chagok}
     username: ${DB_USERNAME:root}
@@ -31,3 +36,14 @@ chagok:
   internal:
     # 내부 서비스 간 호출(X-Internal-Key 헤더) 인증 키
     key: ${CHAGOK_INTERNAL_KEY}
+  storage:
+    # 서류 원본·페이지 이미지를 저장하는 S3 버킷. 자격 증명은 AWS 기본 제공자 체인에서 읽는다.
+    bucket: ${S3_BUCKET}
+    region: ${AWS_REGION:ap-northeast-2}
+  ai:
+    # BE -> AI 서버 호출(X-API-Key 헤더)
+    base-url: ${AI_SERVER_URL}
+    api-key: ${AI_SERVER_API_KEY}
+    # 문서 분석은 최대 90초, 쉬운말 요약 카드는 15초 (명세)
+    analysis-timeout-seconds: 90
+    summary-timeout-seconds: 15
