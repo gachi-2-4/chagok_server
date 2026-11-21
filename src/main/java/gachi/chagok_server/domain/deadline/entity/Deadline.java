@@ -108,8 +108,13 @@ public class Deadline extends BaseTimeEntity {
         return new Deadline(user, document, type, null, label, date, recurrence, endDate, amount, DeadlineSource.USER);
     }
 
-    /** 보낸 값(null이 아닌 것)만 바꾼다. AI 기한이면 userEdited=true가 된다. */
-    public void change(String label, LocalDate date, DeadlineType type, Recurrence recurrence, LocalDate endDate, Long amount) {
+    /**
+     * 보낸 값(null이 아닌 것)만 바꾼다. AI 기한이면 userEdited=true가 된다.
+     * 반복·종료일·금액은 null을 "비움"으로 보낼 수 있어, 비우려는 항목은 clear 값으로 따로 알린다.
+     * 반복을 비우면(반복 끄기) 종료일도 같이 비운다.
+     */
+    public void change(String label, LocalDate date, DeadlineType type, Recurrence recurrence, LocalDate endDate, Long amount,
+                       boolean clearRecurrence, boolean clearEndDate, boolean clearAmount) {
         if (label != null) {
             this.label = label;
         }
@@ -119,13 +124,20 @@ public class Deadline extends BaseTimeEntity {
         if (type != null) {
             this.type = type;
         }
-        if (recurrence != null) {
+        if (clearRecurrence) {
+            this.recurrence = null;
+            this.endDate = null;
+        } else if (recurrence != null) {
             this.recurrence = recurrence;
         }
-        if (endDate != null) {
+        if (clearEndDate) {
+            this.endDate = null;
+        } else if (endDate != null) {
             this.endDate = endDate;
         }
-        if (amount != null) {
+        if (clearAmount) {
+            this.amount = null;
+        } else if (amount != null) {
             this.amount = amount;
         }
         if (source == DeadlineSource.AI) {

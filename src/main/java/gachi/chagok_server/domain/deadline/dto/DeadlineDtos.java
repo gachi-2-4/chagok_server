@@ -3,11 +3,13 @@ package gachi.chagok_server.domain.deadline.dto;
 import gachi.chagok_server.domain.deadline.entity.DeadlineSource;
 import gachi.chagok_server.domain.deadline.entity.DeadlineType;
 import gachi.chagok_server.domain.deadline.entity.Recurrence;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.NotNull;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Set;
 
 /**
  * 기한·기한 알림 API 요청·응답 DTO.
@@ -40,9 +42,23 @@ public final class DeadlineDtos {
                                 Recurrence recurrence, LocalDate endDate, Long amount) {
     }
 
-    /** 보낸 값만 바꾼다. null이면 바꾸지 않는다. */
+    /**
+     * 보낸 값만 바꾼다. 값이 없으면(보내지 않았으면) 바꾸지 않는다.
+     * 반복(recurrence)·종료일(endDate)·금액(amount)은 null을 보내면 비운다.
+     * 보내지 않은 것과 null을 보낸 것은 JSON에서만 구분되므로, 컨트롤러가 null을 보낸 이름을 clear에 담아 준다.
+     *
+     * @param clear null을 명시해서 비우려는 항목 이름 (recurrence / endDate / amount). 요청 JSON에서는 읽지 않는다.
+     */
     public record UpdateRequest(String label, LocalDate date, DeadlineType type, Recurrence recurrence,
-                                LocalDate endDate, Long amount) {
+                                LocalDate endDate, Long amount, @JsonIgnore Set<String> clear) {
+
+        public UpdateRequest withClear(Set<String> names) {
+            return new UpdateRequest(label, date, type, recurrence, endDate, amount, names);
+        }
+
+        public boolean clears(String name) {
+            return clear != null && clear.contains(name);
+        }
     }
 
     /** 기한 추가·수정 응답 */

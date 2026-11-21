@@ -84,7 +84,8 @@ public class DeadlineService {
             throw new BusinessException(ErrorCode.INVALID_DEADLINE);
         }
         LocalDate newDate = request.date();
-        deadline.change(label, newDate, request.type(), request.recurrence(), request.endDate(), request.amount());
+        deadline.change(label, newDate, request.type(), request.recurrence(), request.endDate(), request.amount(),
+                request.clears("recurrence"), request.clears("endDate"), request.clears("amount"));
         if (deadline.getEndDate() != null && deadline.getEndDate().isBefore(deadline.getDate())) {
             throw new BusinessException(ErrorCode.INVALID_DEADLINE);
         }

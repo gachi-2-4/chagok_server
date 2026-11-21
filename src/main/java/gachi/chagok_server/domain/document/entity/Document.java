@@ -167,6 +167,13 @@ public class Document extends BaseTimeEntity {
         this.failReason = null;
     }
 
+    /** 복구용 재분석이 끝났거나 실패했을 때 서류를 원래 상태로 되돌린다. */
+    public void restoreStatus(DocumentStatus status) {
+        this.status = status;
+        this.analysisStep = AnalysisStep.DONE;
+        this.failReason = null;
+    }
+
     public void confirm() {
         this.status = DocumentStatus.CONFIRMED;
     }

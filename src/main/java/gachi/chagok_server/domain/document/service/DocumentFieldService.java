@@ -23,6 +23,7 @@ import gachi.chagok_server.domain.document.event.SummaryCardRequestedEvent;
 import gachi.chagok_server.domain.document.repository.DocumentAnalysisResultRepository;
 import gachi.chagok_server.domain.document.repository.DocumentRepository;
 import gachi.chagok_server.domain.document.support.DocumentDetailAssembler;
+import gachi.chagok_server.domain.document.support.DeadlineFieldSync;
 import gachi.chagok_server.domain.document.support.DocumentFieldValues;
 import gachi.chagok_server.domain.document.support.DocumentJson;
 import gachi.chagok_server.global.exception.BusinessException;
@@ -183,39 +184,16 @@ public class DocumentFieldService {
                 continue;
             }
             String key = deadline.getFieldKey();
-            boolean fieldChanged = changedFields.contains(key);
-            boolean scheduleChanged = changedSchedules.contains(key);
-            if (!fieldChanged && !scheduleChanged) {
-                continue;
+            DeadlineFieldSync.Result result = DeadlineFieldSync.apply(deadline, analysis,
+                    changedFields.contains(key), changedSchedules.contains(key));
+            if (result == DeadlineFieldSync.Result.REMOVED) {
+                // 값을 비워서 사라진 기한은 알림도 같이 지운다.
+                reminders.findByDeadlineId(deadline.getId()).ifPresent(reminders::delete);
+                deadlines.delete(deadline);
+            } else if (changedFields.contains(key) || changedSchedules.contains(key)) {
+                reminderService.reschedule(deadline);
             }
-
-            Field field = DocumentFieldValues.find(analysis, key).orElse(null);
-            if (fieldChanged && deadline.getType() == DeadlineType.EXPIRY && field != null && "DATE".equals(field.valueType())) {
-                if (field.value() == null) {
-                    reminders.findByDeadlineId(deadline.getId()).ifPresent(reminders::delete);
-                    deadlines.delete(deadline);
-                    continue;
-                }
-                deadline.syncFromField(LocalDate.parse(String.valueOf(field.value())), null);
-            }
-            if (fieldChanged && deadline.getType() == DeadlineType.PAYMENT) {
-                DocumentFieldValues.amountOf(analysis, key).ifPresent(amount -> deadline.syncFromField(null, amount));
-            }
-            if (scheduleChanged && deadline.getType() == DeadlineType.PAYMENT && deadline.isRecurring()) {
-                int day = analysis.conditions().paymentSchedules().stream()
-                        .filter(s -> key.equals(s.fieldKey())).findFirst().map(PaymentSchedule::dayOfMonth).orElse(0);
-                if (day > 0) {
-                    deadline.syncFromField(withDay(deadline.getDate(), day), null);
-                }
-            }
-            reminderService.reschedule(deadline);
         }
-    }
-
-    /** 그 달에 없는 날이면(예: 31일) 말일로 처리한다. */
-    static LocalDate withDay(LocalDate date, int dayOfMonth) {
-        YearMonth month = YearMonth.from(date);
-        return month.atDay(Math.min(dayOfMonth, month.lengthOfMonth()));
     }
 
     private static List<PaymentSchedule> scheduleList(Analysis analysis) {

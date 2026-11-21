@@ -58,20 +58,20 @@ public class DocumentAnalysisService {
             byte[] file = storage.get(source.pdfKey());
             analysis = callWithRetry(event, source, file);
         } catch (AiClientException e) {
-            fail(event.documentId(), e.getKind() == AiClientException.Kind.TEXT_NOT_RECOGNIZED
+            fail(event, e.getKind() == AiClientException.Kind.TEXT_NOT_RECOGNIZED
                     ? FailReason.TEXT_NOT_RECOGNIZED : FailReason.ANALYSIS_ERROR);
             return;
         } catch (RuntimeException e) {
             log.error("서류 파일을 읽지 못했어요: documentId={}", event.documentId(), e);
-            fail(event.documentId(), FailReason.ANALYSIS_ERROR);
+            fail(event, FailReason.ANALYSIS_ERROR);
             return;
         }
 
         try {
-            tx.executeWithoutResult(status -> applier.apply(event.documentId(), analysis));
+            tx.executeWithoutResult(status -> applier.apply(event.documentId(), analysis, event.restoreStatus()));
         } catch (RuntimeException e) {
             log.error("분석 결과를 저장하지 못했어요: documentId={}", event.documentId(), e);
-            fail(event.documentId(), FailReason.ANALYSIS_ERROR);
+            fail(event, FailReason.ANALYSIS_ERROR);
             return;
         }
         // 분석이 끝난 뒤 쉬운말 요약 카드를 이어서 만든다. 실패해도 분석 결과는 그대로다.
@@ -109,10 +109,15 @@ public class DocumentAnalysisService {
         throw last;
     }
 
-    private void fail(Long documentId, FailReason reason) {
+    private void fail(DocumentAnalysisRequestedEvent event, FailReason reason) {
         tx.executeWithoutResult(status -> {
-            Document document = documents.findById(documentId).orElse(null);
+            Document document = documents.findById(event.documentId()).orElse(null);
             if (document == null || document.getStatus() != DocumentStatus.ANALYZING) {
+                return;
+            }
+            if (event.isRecovery()) {
+                // 복구용 재분석이 실패해도 지금 분석 결과는 그대로 쓸 수 있으니 원래 상태로 돌려 놓는다 (FAILED면 24시간 뒤 지워진다).
+                document.restoreStatus(event.restoreStatus());
                 return;
             }
             document.fail(reason);

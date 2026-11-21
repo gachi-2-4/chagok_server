@@ -24,6 +24,7 @@
 | `JWT_SECRET` | JWT 서명 키 |
 | `SMS_HASH_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | 인증번호 문자 발송 |
 | `KAKAO_CLIENT_ID`, `KAKAO_APP_ID`, `KAKAO_CLIENT_SECRET`, `KAKAO_REDIRECT_URI` | 카카오 로그인 |
+| `KAKAO_ADMIN_KEY`(선택) | 회원 탈퇴 때 카카오 연결 끊기. 비어 있으면 호출하지 않음 |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | 구글 로그인 |
 | `CHAGOK_INTERNAL_KEY` | AI 서버 → BE 내부 API 인증 (`X-Internal-Key`) |
 | `S3_BUCKET`, `AWS_REGION`(기본 `ap-northeast-2`) | 서류 원본·페이지 이미지 저장소. 자격 증명은 AWS 기본 제공자 체인 |
@@ -48,6 +49,10 @@
 | comparison | `/comparisons/**` | 3/3 | 비교 요청·결과 조회·확인 요청 문자. 결과 조회는 AI 서버용 내부 호출도 받음 |
 | chat | `/chats/**` | 5/5 | 메시지 조회는 AI 서버용 내부 호출도 받음. 스트리밍(SSE) 포함 |
 
+AI 채팅에서 AI가 서류를 잃어버리면(`INDEX_NOT_FOUND`) 서류 분석을 다시 요청합니다. 이때는 사용자가 고친 항목·납부일·기한·알림 설정을 새 결과에 이어 붙이고, 끝나면 원래 서류 상태로 되돌리며, 실패해도 서류를 실패 처리하지 않습니다. 앱에는 409 `DOCUMENT_NOT_INDEXED`로 잠시 기다리게 합니다.
+
+회원 탈퇴 때 카카오 계정은 연결 끊기를 커밋 뒤 비동기로 호출합니다(`KAKAO_ADMIN_KEY`가 있을 때).
+
 FCM 푸시는 firebase-admin 없이 FCM HTTP v1 API를 RestClient로 호출합니다. 알림 저장이 커밋된 뒤 비동기로 보내고, FCM이 토큰 만료(UNREGISTERED)를 알려 주면 그 토큰을 지웁니다. 실제 FCM 서버로는 아직 보내 보지 못했습니다(테스트는 모의 서버).
 
 BE → AI 서버 호출(문서 분석, 요약 카드, 채팅, 질문 칩, 서류 비교, 문자 생성)은 `domain/ai`의 `AiServerClient`로 구현했습니다.
@@ -56,14 +61,12 @@ BE → AI 서버 호출(문서 분석, 요약 카드, 채팅, 질문 칩, 서류
 
 | 항목 | 상태 |
 | --- | --- |
-| HEIC 업로드 | Java 기본 이미지 라이브러리가 읽지 못해 `UNSUPPORTED_FILE_TYPE`로 거부합니다 |
+| HEIC 업로드 | Java 기본 이미지 라이브러리가 읽지 못해 `UNSUPPORTED_FILE_TYPE`로 거부합니다. 앱이 JPEG로 바꿔 올려야 합니다 (서버 변환은 하지 않기로 함) |
 | AI 서버 서류 인덱스 삭제 | 서류·박스 삭제, 회원 탈퇴 때 요청하지 않습니다 (명세에 API 없음) |
-| 카카오 연결 끊기·구글 토큰 철회 | 회원 탈퇴 때 호출하지 않습니다 (로그인 토큰을 저장하지 않고 카카오 어드민 키 설정이 없음) |
-| 회원 탈퇴 비밀번호 재확인 | 명세가 확정 전이라 넣지 않았습니다 |
-| AI 채팅 서류 한도 | 명세 목표는 20개이나 AI가 5개만 받아 5개로 막습니다 |
-| AI 채팅 `INDEX_NOT_FOUND` 복구 | 서류 분석을 다시 요청하지 않고 409만 줍니다 (다시 분석하면 사용자가 고친 값이 덮어써짐) |
-| 질문 횟수 제한(분당 10회) | 서버 한 대의 메모리에서만 셉니다. 서버를 여러 대로 늘리면 공유 저장소가 필요합니다 |
-| 기한 수정 PATCH | `recurrence`·`endDate`를 `null`로 지워 반복을 끄는 것은 지원하지 않습니다 |
+| 구글 토큰 철회 | 회원 탈퇴 때 호출하지 않습니다 (로그인 때 받은 토큰을 저장하지 않음) |
+| 회원 탈퇴 비밀번호 재확인 | 넣지 않기로 했습니다 (명세 기본값대로 Body 없이 토큰만으로 탈퇴) |
+| AI 채팅 서류 한도 | 명세 목표는 20개이나 AI가 5개만 받아 5개로 막습니다. AI가 늘리면 `ChatLinkResolver.MAX_DOCUMENTS`를 바꿉니다 |
+| 질문 횟수 제한(분당 10회) | 서버 한 대의 메모리에서만 셉니다 (서버 1대 운영 기준으로 유지하기로 함). 서버를 여러 대로 늘리면 공유 저장소가 필요합니다 |
 
 AI 서버와 경로·요청 형식을 맞춰야 하는 곳은 [docs/api/README.md](docs/api/README.md)의 "노션 원본 안에서 서로 다른 부분" 표에 있습니다. 구현은 아래처럼 정했습니다.
 

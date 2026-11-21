@@ -8,10 +8,12 @@ import gachi.chagok_server.domain.chat.service.ChatStore.AskContext;
 import gachi.chagok_server.domain.chat.service.ChatStore.ChatLinks;
 import gachi.chagok_server.domain.chat.service.ChatStore.MessagePage;
 import gachi.chagok_server.domain.chat.support.QuestionRateLimiter;
+import gachi.chagok_server.domain.document.service.DocumentReanalysisService;
 import gachi.chagok_server.global.common.PageResponse;
 import gachi.chagok_server.global.exception.BusinessException;
 import gachi.chagok_server.global.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,6 +22,7 @@ import java.util.List;
  * AI 채팅. AI 서버 호출(최대 30초)이 DB 연결을 붙잡지 않도록 이 클래스는 트랜잭션을 열지 않고,
  * 저장·조회는 {@link ChatStore}의 짧은 트랜잭션에 맡긴다.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ChatService {
@@ -34,6 +37,7 @@ public class ChatService {
     private final ChatSuggestionService suggestions;
     private final AiServerClient ai;
     private final QuestionRateLimiter rateLimiter;
+    private final DocumentReanalysisService reanalysis;
 
     /** 새 대화를 만든다. 질문 칩을 받지 못해도(AI 실패) 대화는 만들어진다. */
     public CreateResponse create(Long userId, LinkRequest request) {
@@ -87,9 +91,22 @@ public class ChatService {
         try {
             answer = ai.chatAnswer(chatId, userId, context.linkedDocumentIds(), question);
         } catch (AiClientException e) {
+            if (e.getKind() == AiClientException.Kind.INDEX_NOT_FOUND) {
+                // AI가 서류를 잃어버렸다. 사용자가 고친 값은 유지하면서 서류 분석을 다시 요청하고, 끝날 때까지 잠시 기다리게 한다.
+                requestReanalysis(userId, context.linkedDocumentIds());
+            }
             throw translate(e);
         }
         return store.saveExchange(userId, chatId, question, answer);
+    }
+
+    private void requestReanalysis(Long userId, List<Long> documentIds) {
+        try {
+            reanalysis.requestRecovery(userId, documentIds);
+        } catch (RuntimeException e) {
+            // 복구 요청이 실패해도 앱에는 "다시 정리하고 있어요" 대신 아래 오류 그대로 알린다.
+            log.warn("서류 분석 재요청에 실패했어요: userId={}", userId, e);
+        }
     }
 
     private String greeting(ChatLinks links) {
@@ -98,8 +115,7 @@ public class ChatService {
 
     /**
      * AI 서버 오류를 앱에 줄 오류로 바꾼다: 429는 429, 시간 초과는 504, 나머지는 502.
-     * AI가 서류를 찾지 못하면(INDEX_NOT_FOUND) 409로 알린다. (명세는 이때 서류 분석을 다시 요청하라고 하지만,
-     * 다시 분석하면 사용자가 고친 값이 덮어써져서 아직 요청하지 않는다.)
+     * AI가 서류를 찾지 못하면(INDEX_NOT_FOUND) 서류 분석을 다시 요청하고(사용자가 고친 값은 유지) 409로 알린다.
      */
     static BusinessException translate(AiClientException e) {
         return switch (e.getKind()) {

@@ -7,7 +7,20 @@ import java.time.LocalDate;import java.util.Map;
 public class KakaoOAuthClient {
  private final RestClient rest;
  private final long appId;
- public KakaoOAuthClient(RestClient.Builder builder,@Value("${auth.oauth.kakao.app-id}") long appId){this.rest=builder.baseUrl("https://kapi.kakao.com").build();this.appId=appId;}
+ private final String adminKey;
+ public KakaoOAuthClient(RestClient.Builder builder,@Value("${auth.oauth.kakao.app-id}") long appId,@Value("${auth.oauth.kakao.admin-key:}") String adminKey){this.rest=builder.baseUrl("https://kapi.kakao.com").build();this.appId=appId;this.adminKey=adminKey;}
+ /** 어드민 키가 설정돼 있어 연결 끊기를 호출할 수 있는지 */
+ public boolean canUnlink(){return adminKey!=null&&!adminKey.isBlank();}
+ /**
+  * 카카오 연결 끊기(회원 탈퇴). 사용자 토큰이 아니라 앱 어드민 키로 카카오 회원 번호를 지정해 끊는다.
+  * 어드민 키가 없으면 호출하지 않는다.
+  */
+ public void unlink(String kakaoUserId){
+  if(!canUnlink())return;
+  org.springframework.util.LinkedMultiValueMap<String,String> form=new org.springframework.util.LinkedMultiValueMap<>();
+  form.add("target_id_type","user_id");form.add("target_id",kakaoUserId);
+  rest.post().uri("/v1/user/unlink").header("Authorization","KakaoAK "+adminKey).contentType(org.springframework.http.MediaType.APPLICATION_FORM_URLENCODED).body(form).retrieve().toBodilessEntity();
+ }
  @SuppressWarnings("unchecked")
  public OAuthUserInfo verify(String access){
   Map<String,Object> user;
