@@ -7,6 +7,15 @@ WORKDIR /workspace
 # 의존성 캐시를 살리기 위해 빌드 설정을 먼저 복사한다.
 COPY gradlew settings.gradle build.gradle ./
 COPY gradle gradle
+
+# 메모리가 작은 서버에서 빌드 중 Gradle 데몬이 OOM으로 죽는 것을 막기 위해 JVM 사용량을 줄인다.
+# (SerialGC: GC 스레드·오버헤드 최소화, workers.max=1: 컴파일 워커 1개만 사용)
+ENV GRADLE_OPTS="-XX:+UseSerialGC"
+RUN printf '%s\n' \
+    'org.gradle.jvmargs=-Xmx384m -XX:MaxMetaspaceSize=256m -XX:+UseSerialGC' \
+    'org.gradle.workers.max=1' \
+    'org.gradle.parallel=false' \
+    'org.gradle.vfs.watch=false' > gradle.properties
 RUN --mount=type=cache,target=/root/.gradle ./gradlew --no-daemon dependencies > /dev/null
 
 COPY src src
