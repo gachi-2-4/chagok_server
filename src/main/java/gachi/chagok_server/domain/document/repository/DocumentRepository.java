@@ -20,6 +20,9 @@ public interface DocumentRepository extends JpaRepository<Document, Long>, JpaSp
 
     List<Document> findByBoxId(Long boxId);
 
+    /** 회원 탈퇴 때 지울 사용자의 모든 서류 (분석 실패 포함) */
+    List<Document> findByUserId(Long userId);
+
     /** 질문 칩을 고를 때 쓰는 내 서류 (최근 것부터) */
     List<Document> findByUserIdAndStatusInOrderByIdDesc(Long userId, Collection<DocumentStatus> statuses);
 

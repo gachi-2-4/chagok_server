@@ -30,4 +30,9 @@ public class User {
     public void markOnboardingCompleted() { onboardingCompleted=true; }
     public void changePasswordHash(String next) { this.passwordHash=next; }
     public void deactivate() { deleted=true;deletedAt=Instant.now(); }
+    /**
+     * 회원 탈퇴. 계정을 비활성화하고 개인정보를 지운다. 약관 동의 이력처럼 법령상 보관해야 하는 기록이 이 행을 가리키므로 행 자체는 남긴다.
+     * 전화번호를 비워 같은 번호로 다시 가입할 수 있게 한다.
+     */
+    public void withdraw() { deactivate();name="탈퇴한 사용자";phoneNumber=null;passwordHash=null;birthDate=null; }
 }

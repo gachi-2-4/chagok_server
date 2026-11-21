@@ -8,6 +8,11 @@ public final class DocumentStorageKeys {
     private DocumentStorageKeys() {
     }
 
+    /** 한 사용자의 모든 서류 파일 (회원 탈퇴 때 남은 파일까지 정리) */
+    public static String userPrefix(Long userId) {
+        return "documents/" + userId + "/";
+    }
+
     public static String prefix(Long userId, Long documentId) {
         return "documents/" + userId + "/" + documentId + "/";
     }

@@ -24,4 +24,9 @@ public interface ComparisonRepository extends JpaRepository<Comparison, Long> {
     @Modifying
     @Query("delete from Comparison c where c.id in :ids")
     void deleteByIds(@Param("ids") List<Long> ids);
+
+    /** 회원 탈퇴: 사용자의 비교 결과를 모두 지운다 (AI 호출 중에 만들어 둔 빈 행 포함). */
+    @Modifying(flushAutomatically = true)
+    @Query("delete from Comparison c where c.user.id = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
 }

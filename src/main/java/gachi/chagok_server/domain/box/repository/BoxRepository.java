@@ -19,4 +19,9 @@ public interface BoxRepository extends JpaRepository<Box, Long> {
     boolean existsByUserIdAndNameAndIdNot(Long userId, String name, Long id);
 
     List<Box> findTop4ByUserIdAndLastOpenedAtIsNotNullOrderByLastOpenedAtDesc(Long userId);
+
+    /** 회원 탈퇴: 사용자의 박스를 모두 지운다 (서류는 먼저 지운 뒤에 부른다). */
+    @org.springframework.data.jpa.repository.Modifying(flushAutomatically = true)
+    @org.springframework.data.jpa.repository.Query("delete from Box b where b.user.id = :userId")
+    int deleteAllByUserId(@org.springframework.data.repository.query.Param("userId") Long userId);
 }

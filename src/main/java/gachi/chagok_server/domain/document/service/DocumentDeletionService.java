@@ -58,6 +58,20 @@ public class DocumentDeletionService {
         return inBox.size();
     }
 
+    /**
+     * 회원 탈퇴: 사용자의 서류를 모두 지운다 (서류별 파일·분석 결과·기한·알림·비교 결과 포함).
+     * 저장소에는 서류별로 지우고도 남는 파일이 없도록 사용자 폴더 전체를 한 번 더 지운다.
+     *
+     * @return 지운 서류 수
+     */
+    @Transactional
+    public int deleteAllOfUser(Long userId) {
+        List<Document> mine = documents.findByUserId(userId);
+        mine.forEach(this::deleteOne);
+        runAfterCommit(() -> storageCleaner.deleteByPrefix(DocumentStorageKeys.userPrefix(userId)));
+        return mine.size();
+    }
+
     /** 분석에 실패한 지 cutoff보다 오래된 서류를 지운다 (24시간 뒤 자동 삭제). @return 지운 서류 수 */
     @Transactional
     public int deleteFailedBefore(Instant cutoff) {

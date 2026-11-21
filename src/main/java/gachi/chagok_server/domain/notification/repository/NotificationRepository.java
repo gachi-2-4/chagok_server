@@ -22,5 +22,7 @@ public interface NotificationRepository extends JpaRepository<Notification,Long>
  int detachDocument(@Param("documentId")Long documentId);
  /** 비교 결과를 지우면 그 비교 완료 알림은 남기고 비교 연결만 끊는다. */
  @Modifying @Query("update Notification n set n.comparisonId=null where n.comparisonId in :ids") int detachComparisons(@Param("ids")java.util.List<Long> ids);
+ /** 회원 탈퇴: 사용자의 알림을 모두 지운다. */
+ @Modifying(flushAutomatically=true) @Query("delete from Notification n where n.user.id=:userId") int deleteAllByUserId(@Param("userId")Long userId);
  interface CompletedDeadline { Long getDeadlineId(); java.time.LocalDate getDeadlineDate(); }
 }
