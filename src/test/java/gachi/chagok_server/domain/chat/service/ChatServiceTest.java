@@ -40,6 +40,7 @@ class ChatServiceTest {
     @Mock ChatSuggestionService suggestions;
     @Mock AiServerClient ai;
     @Mock QuestionRateLimiter rateLimiter;
+    @Mock gachi.chagok_server.domain.document.service.DocumentReanalysisService reanalysis;
     @InjectMocks ChatService service;
 
     private static void assertError(Runnable action, ErrorCode expected) {
@@ -199,5 +200,44 @@ class ChatServiceTest {
         // then
         assertThat(response.documents()).hasSize(1);
         verifyNoInteractions(suggestions);
+    }
+
+    @Test
+    @DisplayName("AI가 서류를 잃어버리면(INDEX_NOT_FOUND) 연결된 서류의 분석을 다시 요청하고 409로 알린다")
+    void indexNotFoundRequestsReanalysis() {
+        // given
+        given(rateLimiter.tryAcquire(USER_ID)).willReturn(true);
+        given(store.forQuestion(USER_ID, CHAT_ID)).willReturn(new AskContext(List.of(501L, 570L)));
+        given(ai.chatAnswer(any(), any(), any(), any())).willThrow(new AiClientException(Kind.INDEX_NOT_FOUND, "404"));
+
+        // when & then
+        assertError(() -> service.ask(USER_ID, CHAT_ID, "질문"), ErrorCode.DOCUMENT_NOT_INDEXED);
+        verify(reanalysis).requestRecovery(USER_ID, List.of(501L, 570L));
+    }
+
+    @Test
+    @DisplayName("분석 재요청이 실패해도 앱에는 같은 409를 준다")
+    void reanalysisFailureDoesNotMaskError() {
+        // given
+        given(rateLimiter.tryAcquire(USER_ID)).willReturn(true);
+        given(store.forQuestion(USER_ID, CHAT_ID)).willReturn(new AskContext(List.of(501L)));
+        given(ai.chatAnswer(any(), any(), any(), any())).willThrow(new AiClientException(Kind.INDEX_NOT_FOUND, "404"));
+        org.mockito.Mockito.doThrow(new IllegalStateException("DB 오류")).when(reanalysis).requestRecovery(any(), any());
+
+        // when & then
+        assertError(() -> service.ask(USER_ID, CHAT_ID, "질문"), ErrorCode.DOCUMENT_NOT_INDEXED);
+    }
+
+    @Test
+    @DisplayName("INDEX_NOT_FOUND가 아닌 AI 오류에서는 서류를 다시 분석하지 않는다")
+    void otherErrorsDoNotReanalyze() {
+        // given
+        given(rateLimiter.tryAcquire(USER_ID)).willReturn(true);
+        given(store.forQuestion(USER_ID, CHAT_ID)).willReturn(new AskContext(List.of(501L)));
+        given(ai.chatAnswer(any(), any(), any(), any())).willThrow(new AiClientException(Kind.SERVER_ERROR, "500"));
+
+        // when & then
+        assertError(() -> service.ask(USER_ID, CHAT_ID, "질문"), ErrorCode.AI_ERROR);
+        verifyNoInteractions(reanalysis);
     }
 }

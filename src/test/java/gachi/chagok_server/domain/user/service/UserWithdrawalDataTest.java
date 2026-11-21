@@ -81,6 +81,7 @@ class UserWithdrawalDataTest {
 
     @MockitoBean TokenService tokenService;
     @MockitoBean StorageCleaner storageCleaner;
+    @MockitoBean gachi.chagok_server.domain.auth.oauth.SocialUnlinkService socialUnlink;
 
     @Autowired UserWithdrawalService withdrawal;
     @Autowired EntityManager em;

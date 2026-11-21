@@ -97,7 +97,7 @@ class DocumentAnalysisServiceTest {
 
         // then
         assertThat(document.getAnalysisStep()).isEqualTo(AnalysisStep.READING_TEXT);
-        verify(applier).apply(DOCUMENT_ID, analysis);
+        verify(applier).apply(DOCUMENT_ID, analysis, null);
         verify(summaryCards).generate(DOCUMENT_ID, USER_ID);
     }
 
@@ -117,7 +117,7 @@ class DocumentAnalysisServiceTest {
         assertThat(document.getFailReason()).isEqualTo(FailReason.TEXT_NOT_RECOGNIZED);
         verify(ai, times(1)).analyzeDocument(any(), any(), any(), any(), any(), any(), any());
         verify(publisher).publish(any(User.class), eq(NotificationType.ANALYSIS_FAILED), anyString(), anyString(), any());
-        verify(applier, never()).apply(any(), any());
+        verify(applier, never()).apply(any(), any(), any());
         verify(summaryCards, never()).generate(any(), any());
     }
 
@@ -153,7 +153,7 @@ class DocumentAnalysisServiceTest {
         service.analyze(event);
 
         // then
-        verify(applier).apply(DOCUMENT_ID, analysis);
+        verify(applier).apply(DOCUMENT_ID, analysis, null);
         assertThat(document.getStatus()).isEqualTo(DocumentStatus.ANALYZING);
     }
 
@@ -194,7 +194,7 @@ class DocumentAnalysisServiceTest {
         // given
         stubFile();
         given(ai.analyzeDocument(any(), any(), any(), any(), any(), any(), any())).willReturn(analysis());
-        org.mockito.Mockito.doThrow(new IllegalStateException("DB 오류")).when(applier).apply(any(), any());
+        org.mockito.Mockito.doThrow(new IllegalStateException("DB 오류")).when(applier).apply(any(), any(), any());
 
         // when
         service.analyze(event);
@@ -215,5 +215,37 @@ class DocumentAnalysisServiceTest {
 
         // then
         verify(ai, never()).analyzeDocument(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("복구용 재분석은 결과를 반영할 때 원래 서류 상태를 함께 넘긴다")
+    void recoverySuccessPassesRestoreStatus() {
+        // given
+        stubFile();
+        Analysis analysis = analysis();
+        given(ai.analyzeDocument(any(), any(), any(), any(), any(), any(), any())).willReturn(analysis);
+
+        // when
+        service.analyze(new DocumentAnalysisRequestedEvent(DOCUMENT_ID, USER_ID, null, "LEASE_CONTRACT", DocumentStatus.CONFIRMED));
+
+        // then
+        verify(applier).apply(DOCUMENT_ID, analysis, DocumentStatus.CONFIRMED);
+    }
+
+    @Test
+    @DisplayName("복구용 재분석이 실패해도 서류를 실패 처리하지 않고 원래 상태로 되돌리며 알림도 보내지 않는다")
+    void recoveryFailureRestoresStatus() {
+        // given
+        stubFile();
+        given(ai.analyzeDocument(any(), any(), any(), any(), any(), any(), any()))
+                .willThrow(new AiClientException(Kind.SERVER_ERROR, "500"));
+
+        // when
+        service.analyze(new DocumentAnalysisRequestedEvent(DOCUMENT_ID, USER_ID, null, null, DocumentStatus.CONFIRMED));
+
+        // then
+        assertThat(document.getStatus()).isEqualTo(DocumentStatus.CONFIRMED);
+        assertThat(document.getFailReason()).isNull();
+        verify(publisher, never()).publish(any(), any(), any(), any(), any());
     }
 }

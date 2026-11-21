@@ -46,6 +46,7 @@ class UserWithdrawalServiceTest {
     @Mock UserProfileRepository profiles;
     @Mock SocialAccountRepository socialAccounts;
     @Mock TokenService tokens;
+    @Mock gachi.chagok_server.domain.auth.oauth.SocialUnlinkService socialUnlink;
     @InjectMocks UserWithdrawalService service;
 
     @Test
@@ -99,5 +100,35 @@ class UserWithdrawalServiceTest {
                     e -> assertThat(e.getErrorCode()).isEqualTo(ErrorCode.UNAUTHORIZED));
         }
         verifyNoInteractions(tokens, chats, documentDeletion, boxes);
+    }
+
+    @Test
+    @DisplayName("카카오 계정이면 탈퇴한 뒤 카카오 연결 끊기를 요청하고, 구글 계정은 요청하지 않는다")
+    void unlinksKakaoAfterWithdrawal() {
+        // given
+        User user = User.phoneUser("01012345678", "hash", "홍길동");
+        given(users.findById(USER_ID)).willReturn(Optional.of(user));
+        given(socialAccounts.findByUserId(USER_ID)).willReturn(java.util.List.of(
+                new gachi.chagok_server.domain.user.entity.SocialAccount(user, gachi.chagok_server.domain.user.entity.SocialProvider.KAKAO, "kakao-42"),
+                new gachi.chagok_server.domain.user.entity.SocialAccount(user, gachi.chagok_server.domain.user.entity.SocialProvider.GOOGLE, "google-7")));
+
+        // when
+        service.withdraw(USER_ID);
+
+        // then
+        org.mockito.Mockito.verify(socialUnlink).unlinkKakao(java.util.List.of("kakao-42"));
+    }
+
+    @Test
+    @DisplayName("소셜 계정이 없으면 연결 끊기를 요청하지 않는다")
+    void noSocialAccounts() {
+        // given
+        given(users.findById(USER_ID)).willReturn(Optional.of(User.phoneUser("01012345678", "hash", "홍길동")));
+
+        // when
+        service.withdraw(USER_ID);
+
+        // then
+        verifyNoInteractions(socialUnlink);
     }
 }
