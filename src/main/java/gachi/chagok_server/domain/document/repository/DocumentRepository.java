@@ -20,6 +20,9 @@ public interface DocumentRepository extends JpaRepository<Document, Long>, JpaSp
 
     List<Document> findByBoxId(Long boxId);
 
+    /** 질문 칩을 고를 때 쓰는 내 서류 (최근 것부터) */
+    List<Document> findByUserIdAndStatusInOrderByIdDesc(Long userId, Collection<DocumentStatus> statuses);
+
     /** 박스별 서류 수 (분석 실패 서류는 뺀다) */
     @Query("select d.box.id as boxId, count(d) as documentCount from Document d "
             + "where d.box.id in :boxIds and d.status <> :excluded group by d.box.id")

@@ -1,6 +1,7 @@
 package gachi.chagok_server.domain.document.service;
 
 import gachi.chagok_server.domain.box.entity.Box;
+import gachi.chagok_server.domain.comparison.repository.ComparisonRepository;
 import gachi.chagok_server.domain.deadline.repository.DeadlineRepository;
 import gachi.chagok_server.domain.deadline.service.ReminderService;
 import gachi.chagok_server.domain.document.entity.Document;
@@ -25,7 +26,8 @@ import java.util.List;
 /**
  * 서류와 관련 데이터를 지운다. 되돌릴 수 없다.
  * DB에서는 바로 지우고, 저장소 파일은 커밋된 뒤 비동기로 지운다.
- * (서류를 쓴 비교 결과·대화 연결·AI 인덱스 정리는 해당 기능이 생길 때 여기에 더한다.)
+ * 서류를 쓴 비교 결과도 같이 지운다. 대화는 연결만 남기고 지우지 않는다(지난 대화 목록에 "삭제된 서류"로 보임).
+ * (AI 서버 인덱스 삭제는 명세에 API가 없어 아직 호출하지 않는다.)
  */
 @Service
 @RequiredArgsConstructor
@@ -38,6 +40,7 @@ public class DocumentDeletionService {
     private final DeadlineRepository deadlines;
     private final ReminderService reminderService;
     private final NotificationRepository notifications;
+    private final ComparisonRepository comparisons;
     private final StorageCleaner storageCleaner;
 
     @Transactional
@@ -69,6 +72,12 @@ public class DocumentDeletionService {
 
         // 이미 보낸 알림은 남기고, 연결된 서류·기한 정보만 비운다.
         notifications.detachDocument(documentId);
+        // 이 서류로 비교한 결과도 같이 지운다. 그 비교 완료 알림은 남기되 비교 연결만 끊는다.
+        List<Long> comparisonIds = comparisons.findIdsByDocument(documentId);
+        if (!comparisonIds.isEmpty()) {
+            notifications.detachComparisons(comparisonIds);
+            comparisons.deleteByIds(comparisonIds);
+        }
         checkItems.deleteByDocumentId(documentId);
         reminderService.deleteByDocument(documentId);
         deadlines.deleteByDocumentId(documentId);

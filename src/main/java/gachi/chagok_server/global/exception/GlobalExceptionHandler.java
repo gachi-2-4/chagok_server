@@ -27,7 +27,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessException(BusinessException e) {
         ErrorCode errorCode = e.getErrorCode();
-        return toResponse(errorCode, ErrorResponse.of(errorCode));
+        ErrorResponse body = e.getReason() != null ? ErrorResponse.withReason(errorCode, e.getReason()) : ErrorResponse.of(errorCode);
+        return toResponse(errorCode, body);
     }
 
     // MethodArgumentNotValidException(@Valid @RequestBody)도 BindException의 하위 타입이라 함께 처리된다.

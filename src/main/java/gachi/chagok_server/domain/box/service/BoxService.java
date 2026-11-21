@@ -5,6 +5,7 @@ import gachi.chagok_server.domain.box.entity.Box;
 import gachi.chagok_server.domain.box.entity.BoxColor;
 import gachi.chagok_server.domain.box.entity.BoxIcon;
 import gachi.chagok_server.domain.box.repository.BoxRepository;
+import gachi.chagok_server.domain.chat.repository.ChatBoxLinkRepository;
 import gachi.chagok_server.domain.deadline.schedule.DeadlineOccurrence;
 import gachi.chagok_server.domain.deadline.schedule.DeadlineSnapshot;
 import gachi.chagok_server.domain.deadline.service.DeadlineQueryService;
@@ -49,6 +50,7 @@ public class BoxService {
     private final DocumentRepository documents;
     private final DeadlineQueryService deadlineQuery;
     private final DocumentDeletionService documentDeletion;
+    private final ChatBoxLinkRepository chatBoxLinks;
 
     /** 가입한 사용자에게 기본 박스 5개를 만든다. */
     @Transactional
@@ -117,6 +119,8 @@ public class BoxService {
     public Deleted delete(Long userId, Long boxId) {
         Box box = find(userId, boxId);
         int deleted = documentDeletion.deleteAllInBox(box);
+        // 대화에 박스를 통째로 넣었다면 그 박스 연결도 끊는다. (서류는 대화에서 "삭제된 서류"로 보인다.)
+        chatBoxLinks.deleteByBoxId(boxId);
         boxes.delete(box);
         return new Deleted(boxId, deleted);
     }

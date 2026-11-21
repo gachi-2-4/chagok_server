@@ -54,6 +54,22 @@ public enum ErrorCode {
     INVALID_ADVANCE_DAYS(HttpStatus.BAD_REQUEST, "미리 알림은 0일에서 90일 사이로 1개에서 5개까지 골라 주세요."),
     INVALID_ALERT_TIME(HttpStatus.BAD_REQUEST, "알림 시각은 10분 단위로 골라 주세요."),
 
+    // 서류 비교
+    COMPARISON_NOT_FOUND(HttpStatus.NOT_FOUND, "비교 결과를 찾을 수 없어요."),
+    INVALID_COMPARE_PAIR(HttpStatus.BAD_REQUEST, "계약서와 고지서(또는 광고)를 골라 주세요."),
+    SAME_DOCUMENT(HttpStatus.BAD_REQUEST, "서로 다른 서류를 골라 주세요."),
+    NOT_COMPARABLE(HttpStatus.valueOf(422), "같은 서비스와 같은 기간의 서류를 골라 주세요."),
+    NO_DIFFERENCE(HttpStatus.valueOf(422), "차이가 없어 확인 요청 문자를 만들 필요가 없어요."),
+
+    // AI 채팅
+    CHAT_NOT_FOUND(HttpStatus.NOT_FOUND, "대화를 찾을 수 없어요."),
+    TOO_MANY_DOCUMENTS(HttpStatus.BAD_REQUEST, "서류는 5개까지 넣을 수 있어요."),
+    DOCUMENT_ANALYSIS_FAILED(HttpStatus.CONFLICT, "분석에 실패한 서류는 넣을 수 없어요."),
+    INVALID_QUESTION(HttpStatus.BAD_REQUEST, "질문은 1자에서 500자까지 쓸 수 있어요."),
+    NO_LINKED_DOCUMENT(HttpStatus.CONFLICT, "물어볼 서류가 없어요. 보관함에서 서류를 넣어 주세요."),
+    DOCUMENT_NOT_INDEXED(HttpStatus.CONFLICT, "서류를 다시 정리하고 있어요. 잠시 후 물어봐 주세요."),
+    RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "잠시 후 다시 물어봐 주세요."),
+
     // AI 서버 연동
     AI_ERROR(HttpStatus.BAD_GATEWAY, "AI 서버에서 오류가 났어요."),
     AI_TIMEOUT(HttpStatus.GATEWAY_TIMEOUT, "AI 서버 응답이 너무 늦어요.");

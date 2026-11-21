@@ -11,13 +11,24 @@ public class BusinessException extends RuntimeException {
 
     private final ErrorCode errorCode;
 
+    /** 응답에 함께 내려줄 세부 사유 (없으면 null) */
+    private final String reason;
+
     public BusinessException(ErrorCode errorCode) {
         super(errorCode.getMessage());
         this.errorCode = errorCode;
+        this.reason = null;
     }
 
     public BusinessException(ErrorCode errorCode, Throwable cause) {
         super(errorCode.getMessage(), cause);
         this.errorCode = errorCode;
+        this.reason = null;
+    }
+
+    public BusinessException(ErrorCode errorCode, String reason) {
+        super(errorCode.getMessage());
+        this.errorCode = errorCode;
+        this.reason = reason;
     }
 }

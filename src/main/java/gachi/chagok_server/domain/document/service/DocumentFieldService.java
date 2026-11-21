@@ -4,6 +4,7 @@ import gachi.chagok_server.domain.ai.dto.AiDocumentDtos.Analysis;
 import gachi.chagok_server.domain.ai.dto.AiDocumentDtos.Conditions;
 import gachi.chagok_server.domain.ai.dto.AiDocumentDtos.Field;
 import gachi.chagok_server.domain.ai.dto.AiDocumentDtos.PaymentSchedule;
+import gachi.chagok_server.domain.comparison.repository.ComparisonRepository;
 import gachi.chagok_server.domain.deadline.entity.Deadline;
 import gachi.chagok_server.domain.deadline.entity.DeadlineSource;
 import gachi.chagok_server.domain.deadline.entity.DeadlineType;
@@ -56,6 +57,7 @@ public class DocumentFieldService {
     private final DeadlineRepository deadlines;
     private final ReminderRepository reminders;
     private final ReminderService reminderService;
+    private final ComparisonRepository comparisons;
     private final DocumentDetailAssembler assembler;
     private final DocumentJson json;
     private final ApplicationEventPublisher events;
@@ -76,6 +78,7 @@ public class DocumentFieldService {
                 throw new BusinessException(ErrorCode.INVALID_INPUT);
             }
             document.restartAnalysis();
+            comparisons.markOutdatedByDocument(documentId);
             events.publishEvent(new DocumentAnalysisRequestedEvent(documentId, userId, null, request.docType().name()));
             return assembler.assemble(document);
         }
@@ -165,6 +168,8 @@ public class DocumentFieldService {
     private void save(Document document, DocumentAnalysisResult result, Analysis analysis) {
         result.updateAnalysis(json.write(analysis), DocumentFieldValues.searchText(document.getTitle(), analysis));
         document.updateNeedsReview(DocumentFieldValues.anyNeedsReview(analysis.fields()));
+        // 이 서류를 쓴 비교 결과는 다시 비교하라고 안내한다.
+        comparisons.markOutdatedByDocument(document.getId());
     }
 
     /**
