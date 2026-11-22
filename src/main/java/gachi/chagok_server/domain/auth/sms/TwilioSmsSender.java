@@ -1,12 +1,15 @@
 package gachi.chagok_server.domain.auth.sms;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.*;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestClient;
 
+// auth.sms.provider가 twilio(기본값)일 때만 사용한다.
 @Component
+@ConditionalOnProperty(name = "auth.sms.provider", havingValue = "twilio", matchIfMissing = true)
 public class TwilioSmsSender implements SmsSender {
     private final String accountSid;
     private final String authToken;

@@ -23,6 +23,7 @@
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | MySQL |
 | `JWT_SECRET` | JWT 서명 키 |
 | `SMS_HASH_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` | 인증번호 문자 발송 |
+| `SMS_PROVIDER`(선택, 기본 `twilio`) | `log`로 두면 문자를 보내지 않고 인증번호를 서버 로그에 남기고 발송 API 응답의 `code` 필드에도 포함(시연·테스트용, 운영 금지). 이때 Twilio 값은 필요 없음 |
 | `KAKAO_CLIENT_ID`, `KAKAO_APP_ID`, `KAKAO_CLIENT_SECRET`, `KAKAO_REDIRECT_URI` | 카카오 로그인 |
 | `KAKAO_ADMIN_KEY`(선택) | 회원 탈퇴 때 카카오 연결 끊기. 비어 있으면 호출하지 않음 |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` | 구글 로그인 |

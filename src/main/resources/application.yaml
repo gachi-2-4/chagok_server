@@ -15,6 +15,8 @@ auth:
   jwt:
     secret: ${JWT_SECRET}
   sms:
+    # twilio: 실제 문자 발송(기본값) / log: 문자를 보내지 않고 인증번호를 서버 로그에 남기고 발송 API 응답 code 필드에도 포함한다(시연·테스트용, 운영 사용 금지)
+    provider: ${SMS_PROVIDER:twilio}
     hash-secret: ${SMS_HASH_SECRET}
     twilio:
       account-sid: ${TWILIO_ACCOUNT_SID}

@@ -16,6 +16,8 @@ public class PhoneVerificationService {
  private final SmsSender sms;
  private final SecureRandom random = new SecureRandom();
  @Value("${auth.sms.hash-secret}") private String secret;
+ // log 모드(시연·테스트용)에서만 인증번호를 응답에 포함한다. 실제 문자 발송 모드에서는 절대 노출하지 않는다.
+ @Value("${auth.sms.provider:twilio}") private String smsProvider;
  private String hash(String raw){try {Mac m=Mac.getInstance("HmacSHA256");m.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8),"HmacSHA256"));return HexFormat.of().formatHex(m.doFinal(raw.getBytes(StandardCharsets.UTF_8)));}catch(GeneralSecurityException e){throw new IllegalStateException(e);}}
  @Transactional
  public VerificationCodeResponse send(String phone,VerificationPurpose purpose){
@@ -28,7 +30,7 @@ public class PhoneVerificationService {
    String code="%06d".formatted(random.nextInt(1_000_000));
    if(v==null){v=new PhoneVerification(phone,purpose,hash(phone+":"+purpose+":"+code),now);codes.saveAndFlush(v);}else{v.resend(hash(phone+":"+purpose+":"+code),now);}
    sms.send(phone,"[차곡] 인증번호 "+code+" (3분 이내 입력)");
-   return new VerificationCodeResponse(phone,180,60);
+   return new VerificationCodeResponse(phone,180,60,"log".equals(smsProvider)?code:null);
  }
  @Transactional(noRollbackFor=BusinessException.class)
  public VerificationTokenResponse confirm(String phone,String code,VerificationPurpose purpose){
